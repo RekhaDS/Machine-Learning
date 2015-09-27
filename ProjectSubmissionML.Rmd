@@ -1,0 +1,115 @@
+---
+title: "Practical Machine Learning - Project "
+author: "Rekha Nair"
+date: "September 25, 2015"
+output: html_document
+---
+
+#####Report Summary: We have data collected by different activity devices like  Fitbit, Jawbone etc. The goal of this project is to clean, explore, analyze and predict the outcomes using different prediction models as discussed in the class. I have used the CART(rpart) and RandomForest as my prediction model. The conclusion based off the analysis, is, that the RandomForest as expected provides a better accuracy than rpart in predicting the outcome.
+
+
+```{r}
+set.seed(12345)
+
+## Load the required libraries
+
+library(caret)
+library(rpart)
+library(rattle)
+library(randomForest)
+
+## Read the data
+## Training set 
+
+training <- read.csv("pml-training.csv", na.strings = "NA", header=TRUE)
+```
+
+#####CreateDataPartition on the original training set. This is because we need to first analyze on the subset of the training set which we will then use to validate against the rest of the data from the training set i.e the testing subset. 
+
+```{r}
+
+## Cleaning the data as required. 
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+subsetnewTrainingData <- training[inTrain, ] 
+subsetnewTestingData <- training[-inTrain,]
+
+##Find out data with near zero variance 
+nzv <- nearZeroVar(subsetnewTrainingData)
+filteredTrainingData <- subsetnewTrainingData[, -nzv]
+
+##Training Data subset(delete any column with NA's)
+newTrainingData <- filteredTrainingData[ , ! apply( filteredTrainingData , 2 , function(x) mean(is.na(x) > 0.95) ) ]
+
+newTrainingData <- newTrainingData[,(-1)]
+
+
+##Find out data with near zero variance  on the testing subset
+nzv <- nearZeroVar(subsetnewTestingData)
+filteredTestingData <- subsetnewTestingData[, -nzv]
+
+##Training Data subset(delete any column with NA's)
+newTestingData <- filteredTestingData[ , ! apply( filteredTestingData , 2 , function(x) any(is.na(x)) > 0.95) ]
+
+## Taking out the first column X. 
+newTestingData <- newTestingData[,(-1)]
+
+## Prediction based off rpart 
+rpartFit = rpart(classe ~ . , method="class", data=newTrainingData)
+printcp(rpartFit)
+
+# visualize cross-validation results
+plotcp(rpartFit) 
+
+# plot tree
+fancyRpartPlot(rpartFit)
+
+predictionrPart <- predict(rpartFit, newTestingData, type = "class")
+confusionMatrix(predictionrPart, newTestingData$classe)
+
+
+## Prediction based off Random Forest
+rfFitModel  <- randomForest(classe ~ .,data=newTrainingData,mtry=10,importance=TRUE)
+
+predictionRF <- predict(rfFitModel, newTestingData, type = "class")
+confusionMatrix(predictionRF, newTestingData$classe)
+
+
+## Testing set
+training <- read.csv("pml-training.csv", na.strings = "NA", header=TRUE)
+filterTrainingData <- training[,-nzv]
+originalTrainingData <- filterTrainingData[ , ! apply( filterTrainingData , 2 , function(x) mean(is.na(x) > 0.95) ) ]
+
+testing <- read.csv("pml-testing.csv", na.strings = "NA", header=TRUE)
+filteresTestingData <- testing[,-nzv]
+originalTestingData <- filteresTestingData[ , ! apply( filteresTestingData , 2 , function(x) mean(is.na(x) > 0.95) ) ]
+
+
+train <- originalTrainingData[, -(1)]
+test <- originalTestingData[, -(1)]
+
+# re-fit model using full training set
+
+```
+
+
+#####Cross validation method with 3 folds is specified using the trainControl method. Training the data using method "rf"
+
+
+
+```{r}
+
+fitControl <- trainControl(method="cv", number=3, verboseIter=F)
+modelforPrediction <- train(classe ~ ., data=train, method="rf", trControl=fitControl)
+
+```
+
+#####Conclusion - RandomForest provides a 99% accuracy as compared to 86% from rpart model. The RandomForest model has been selected for the prediction of the original test data.
+
+
+```{r}
+##Prediction on original testing data, based on RandomForest model
+# predict(modelforPrediction, newdata=test)
+#[1] B A B A A E D B A A B C B A E E A B B B
+#Levels: A B C D E
+
+```
